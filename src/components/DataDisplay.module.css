@@ -1,0 +1,49 @@
+.titleWrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  padding: 1rem 0; 
+    background: linear-gradient(
+    to bottom,
+    #3B4CCA 0%,
+    #363eaa 100%
+  );
+  color: white;
+}
+
+.pageWrapper {
+  background: linear-gradient(
+    to top,
+    #3B4CCA 0%,
+    #363eaa 100%
+  )
+}
+
+.titleWrapper h1 {
+  margin: 0;
+  padding: 1rem 0; /* if you still want vertical breathing room */
+}
+
+
+.tableWrapper {
+  text-align: center;
+  background: linear-gradient(
+    to bottom,
+    #EE1515 0%,
+    #999999 55%,
+    #ffffff 100%
+  );
+}
+
+.table {
+  margin: 2rem auto;
+  border-collapse: collapse;
+  background-color: rgb(196, 183, 183);
+}
+
+.headerCell,
+.bodyCell {
+  border: 1px solid #ccc;
+  padding: 0.5rem;
+}
