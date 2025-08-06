@@ -1,10 +1,11 @@
 .titleWrapper {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   margin: 0;
   padding: 1rem 0; 
-    background: linear-gradient(
+  background: linear-gradient(
     to bottom,
     #3B4CCA 0%,
     #363eaa 100%
@@ -22,9 +23,39 @@
 
 .titleWrapper h1 {
   margin: 0;
-  padding: 1rem 0; /* if you still want vertical breathing room */
+  padding: 1rem 0;
 }
 
+.lastUpdated {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.8;
+  font-style: italic;
+}
+
+.navigationButtons {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.navButton {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border: none;
+  background-color: #ffffff;
+  color: #333;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.navButton:hover {
+  background-color: #f0f0f0;
+}
 
 .tableWrapper {
   text-align: center;
@@ -46,4 +77,34 @@
 .bodyCell {
   border: 1px solid #ccc;
   padding: 0.5rem;
+}
+
+/* Main Menu specific styles */
+.mainMenu {
+  text-align: center;
+  padding: 2rem;
+}
+
+.mainMenuButtonContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 2rem;
+}
+
+.mainMenuButton {
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  cursor: pointer;
+  border: none;
+  background-color: #3B4CCA;
+  color: white;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.mainMenuButton:hover {
+  background-color: #363eaa;
 }

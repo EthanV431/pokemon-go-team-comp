@@ -1,74 +1,105 @@
-import requests
 from bs4 import BeautifulSoup
-from urllib.parse import quote_plus
 from flask import Flask, jsonify
 from flask_cors import CORS
-from functools import lru_cache
+import json
+import os
+from datetime import datetime, timedelta
+import threading
+import time
+import schedule
+
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from camoufox.sync_api import Camoufox
+
+# Data storage file
+DATA_FILE = 'pokemon_data.json'
+
+def create_driver():
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--remote-debugging-port=9222")
+
+    # point to the OS-installed chromedriver
+    service = Service("/usr/bin/chromedriver")
+    driver  = webdriver.Chrome(service=service, options=options)
+    return driver
 
 app = Flask(__name__)
 CORS(app)
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; MyNewsBot/1.0)"
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/115.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://google.com",
+    "Connection": "keep-alive",
+    "DNT": "1",  # Do Not Track
+    "Upgrade-Insecure-Requests": "1",
 }
 
-def getLatestArticle(query):
-    # 1) build the search URL
-    url = f"https://gamerant.com/search/?q={quote_plus(query)}"
-    resp = requests.get(url, headers=HEADERS, timeout=10)
-    resp.raise_for_status()
+def load_cached_data():
+    """Load data from JSON file"""
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            pass
+    return {}
 
-    # 2) parse the search‐results page
-    soup = BeautifulSoup(resp.text, "html.parser")
+def save_cached_data(data):
+    """Save data to JSON file"""
+    try:
+        with open(DATA_FILE, 'w') as f:
+            json.dump(data, f, indent=2)
+    except IOError as e:
+        print(f"Error saving data: {e}")
 
-    # 3) grab the first <h5 class="display-card-title"> → <a>
-    link_tag = soup.select_one("h5.display-card-title > a")
-    if not link_tag:
-        return None
-
-    # 4) extract clean title text
-    title = link_tag.get_text(strip=True)
-
-    # 5) build absolute URL
-    href = link_tag["href"]
-    if href.startswith("/"):
-        href = "https://gamerant.com" + href
-
-    return title, href
+def should_update_data():
+    """Check if we should update data (start or end of month)"""
+    now = datetime.now()
+    
+    # Check if it's the start of the month (1st-3rd)
+    if 1 <= now.day <= 3:
+        return True
+    
+    # Check if it's the end of the month (last 3 days)
+    next_month = now.replace(day=28) + timedelta(days=4)
+    last_day_of_month = (next_month - timedelta(days=next_month.day)).day
+    if now.day >= last_day_of_month - 2:
+        return True
+    
+    return False
 
 def getPageContent(url, timeout=10):
-    """
-    Fetch the given URL and extract text from all <h3> and <tbody> elements.
+    with Camoufox(headless=True, geoip=True) as browser:
+        page = browser.new_page()
+        page.goto(url, timeout=timeout * 1000)    # timeout in ms
+        html = page.content()                      # get rendered HTML
 
-    Returns a dict with two lists: 'h3' and 'tbody'.
-    """
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; Scraper/1.0)"}
-    resp = requests.get(url, headers=headers, timeout=timeout)
-    resp.raise_for_status()
-
-    soup = BeautifulSoup(resp.text, "html.parser")
-
-    # get all <h3> text
-    h3_texts = [tag.get_text(strip=True) for tag in soup.find_all("h3")]
-
-    # get all <tbody> text (preserving line breaks between rows)
+    # parse with BeautifulSoup as before
+    soup = BeautifulSoup(html, "html.parser")
+    h2_texts = [tag.get_text(strip=True) for tag in soup.find_all("h2")]
+    h1_texts = [tag.get_text(strip=True) for tag in soup.find_all("h1")]
     tbody_texts = [
         tag.get_text(separator="\n", strip=True)
         for tag in soup.find_all("tbody")
     ]
-
-    return {"h3": h3_texts, "tbody": tbody_texts}
-
+    return {"h2": h2_texts, "h1": h1_texts, "tbody": tbody_texts}
 
 def cleanBodyText(text):
     chunks = []
     buf = []
     newline_count = 0
 
-    for ch in text:
+    for ch in text[14:]:
         if ch == "\n":
             newline_count += 1
-            if newline_count % 3 == 0:
+            if newline_count % 2 == 0:
                 chunks.append("".join(buf))
                 buf = []
             else:
@@ -78,43 +109,116 @@ def cleanBodyText(text):
 
     if buf:
         chunks.append("".join(buf))
-
     return chunks
 
+def fetch_and_cache_data():
+    """Fetch all data and cache it"""
+    print(f"Fetching data at {datetime.now()}")
+    
+    cached_data = load_cached_data()
+    
+    # URLs for each boss
+    urls = {
+        'giovanni': "https://pokemongohub.net/post/guide/rocket-boss-giovanni-counters/",
+        'arlo': "https://pokemongohub.net/post/guide/rocket-leader-arlo-counters/",
+        'cliff': "https://pokemongohub.net/post/guide/rocket-leader-cliff-counters/",
+        'sierra': "https://pokemongohub.net/post/guide/rocket-leader-sierra-counters/"
+    }
+    
+    for boss, url in urls.items():
+        try:
+            content = getPageContent(url)
+            if content:
+                if boss == 'giovanni':
+                    headers = content["h2"][2:7]
+                else:
+                    headers = content["h2"][1:8]
+                    
+                rows = [cleanBodyText(row) for row in content["tbody"][1:]]
+                rows = [list(col) for col in zip(*rows)]
+                
+                cached_data[boss] = {
+                    "title": content["h1"][0],
+                    "url": url,
+                    "headers": headers,
+                    "rows": rows,
+                    "last_updated": datetime.now().isoformat()
+                }
+                print(f"Successfully cached {boss} data")
+        except Exception as e:
+            print(f"Error fetching {boss} data: {e}")
+    
+    save_cached_data(cached_data)
 
-@lru_cache(maxsize=1)
-def fetch_latest():
-    return getLatestArticle("how to beat giovanni pokemon go")
+def get_cached_boss_data(boss_name):
+    """Get cached data for a specific boss"""
+    cached_data = load_cached_data()
+    
+    if boss_name in cached_data:
+        return cached_data[boss_name]
+    
+    # If no cached data, fetch it now
+    fetch_and_cache_data()
+    cached_data = load_cached_data()
+    return cached_data.get(boss_name, {"title": "", "url": "", "headers": [], "rows": []})
 
-@app.route('/api/data')
-def get_data():
-    latest = fetch_latest()    # cached on second call
-    data = [[], []]
-    if latest:
-        title, url = latest
-        content = getPageContent(url)
-        if content:
-            for i in range(1, len(content["h3"]) - 3):
-                data[0].append(content["h3"][i])
-            for i in range(1, len(content["tbody"])):
-                data[1].append(cleanBodyText(content["tbody"][i]))
-        return jsonify({
-            "title": title,
-            "url":   url,
-            "headers": data[0],
-            "rows":    data[1]
-        })
-    return jsonify({"headers": [], "rows": []})
+# Schedule data fetching
+def run_scheduler():
+    """Run the scheduler in a separate thread"""
+    schedule.every().day.at("00:00").do(lambda: fetch_and_cache_data() if should_update_data() else None)
+    schedule.every().day.at("12:00").do(lambda: fetch_and_cache_data() if should_update_data() else None)
+    
+    while True:
+        schedule.run_pending()
+        time.sleep(3600)  # Check every hour
 
-"""
-@app.route('/api/title')
-def get_title():
-    latest = fetch_latest()
-    if latest:
-        title, url = latest
-        return jsonify({"title": title, "url": url})
-    return jsonify({"title": None})
-"""
+# Start scheduler in background thread
+scheduler_thread = threading.Thread(target=run_scheduler, daemon=True)
+scheduler_thread.start()
+
+@app.route('/api/giovanniTeam')
+def get_giovanni_data():
+    data = get_cached_boss_data('giovanni')
+    return jsonify(data)
+
+@app.route('/api/arloTeam')
+def get_arlo_data():
+    data = get_cached_boss_data('arlo')
+    return jsonify(data)
+
+@app.route('/api/cliffTeam')
+def get_cliff_data():
+    data = get_cached_boss_data('cliff')
+    return jsonify(data)
+
+@app.route('/api/sierraTeam')
+def get_sierra_data():
+    data = get_cached_boss_data('sierra')
+    return jsonify(data)
+
+@app.route('/api/refresh')
+def force_refresh():
+    """Manually trigger a data refresh"""
+    fetch_and_cache_data()
+    return jsonify({"message": "Data refreshed successfully"})
+
+@app.route('/api/status')
+def get_status():
+    """Get the last update time for all data"""
+    cached_data = load_cached_data()
+    status = {}
+    for boss in ['giovanni', 'arlo', 'cliff', 'sierra']:
+        if boss in cached_data and 'last_updated' in cached_data[boss]:
+            status[boss] = cached_data[boss]['last_updated']
+        else:
+            status[boss] = "Never updated"
+    return jsonify(status)
 
 if __name__ == "__main__":
+    # Initial data fetch if no cached data exists
+    cached_data = load_cached_data()
+    if not cached_data:
+        print("No cached data found, performing initial fetch...")
+        fetch_and_cache_data()
+    
     app.run(port=5000)
