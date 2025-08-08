@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import styles from './DataDisplay.module.css'
+import styles from './DataDisplay.module.css';
+import pokeball from '../images/pokeball.png';
 
 function GiovanniDataDisplay() {
   const [rows, setRows] = useState([]);
@@ -9,6 +10,8 @@ function GiovanniDataDisplay() {
   const [error, setError] = useState(null);
   const [title, setTitle] = useState('');
   const [lastUpdated, setLastUpdated] = useState('');
+  const [headerImages, setHeaderImages] = useState([]);
+  const [bodyImages, setBodyImages] = useState([]);
 
     useEffect(() => {
     fetch('http://localhost:5000/api/giovanniTeam')
@@ -21,6 +24,13 @@ function GiovanniDataDisplay() {
         setHeaders(json.headers || []);
         setTitle(json.title || '');
         setLastUpdated(json.last_updated || '');
+        // Slice header images to match headers length
+        const headerImgs = json.header_images || [];
+        const headersLength = (json.headers || []).length;
+        setHeaderImages(headerImgs.slice(0, headersLength));
+        // Slice body images to match headers length
+        const bodyImgs = (json.body_images || []).map(row => row.slice(0, headersLength));
+        setBodyImages(bodyImgs);
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
@@ -47,47 +57,60 @@ function GiovanniDataDisplay() {
           <div className={styles.navigationButtons}>
             <Link to="/">
               <button className={styles.navButton}>
+                <img src={pokeball} alt="" className={styles.pokeballIcon} />
                 Main Menu
               </button>
             </Link>
             <Link to="/giovanni">
               <button className={styles.navButton}>
+                <img src={pokeball} alt="" className={styles.pokeballIcon} />
                 Giovanni
               </button>
             </Link>
             <Link to="/arlo">
               <button className={styles.navButton}>
+                <img src={pokeball} alt="" className={styles.pokeballIcon} />
                 Arlo
               </button>
             </Link>
             <Link to="/cliff">
               <button className={styles.navButton}>
+                <img src={pokeball} alt="" className={styles.pokeballIcon} />
                 Cliff
+              </button>
+            </Link>
+            <Link to="/sierra">
+              <button className={styles.navButton}>
+                <img src={pokeball} alt="" className={styles.pokeballIcon} />
+                Sierra
               </button>
             </Link>
           </div>
         </div>
         <div className={styles.tableWrapper}>
           <div className={styles.description}>
-            <h4>Giovanni is the leader of Team GO Rocket. He always leads with the first Pokémon on this page, though at time of writing I don't know if it changes every month.</h4>
+            <h3>Giovanni is the boss of Team GO Rocket. He always leads with the first Pokémon on this page.</h3>
           </div>
           <div className={styles.subtitle}>
             <h2>Giovanni's Pokémon</h2>
-            <h4>These are the Pokémon Giovanni uses in his current lineup.</h4>
-            <h4>Note that Giovanni's Pokémon may change in the future, so this data may not always be accurate.</h4>
-            <h4>For the latest information, please refer to the official Pokémon GO website or community resources.</h4>
+            <h3>These are the Pokémon Giovanni uses in his current lineup with reccommendations to beat them. <br />If you don't have Mega or Shadow versions of these Pokémon, regular versions can still be effective.</h3>
+            <h3>Note that Giovanni's Pokémon may change in the future, so this data may not always be accurate.</h3>
+            <h3>For the latest information, please refer to the official Pokémon GO website or community resources.</h3>
           </div>
           {headers.map((hdr, colIndex) => {
-              const splitRows = rows.map(row => {
+            const splitRows = rows.map((row, originalRowIndex) => {
               const cell = row[colIndex] || "";
               const [col1 = "", rest = ""] = cell.split('\n');
               const [col2 = "", col3 = ""] = rest
               .split(',')
               .map(s => s.trim());
-              return [col1.trim(), col2, col3];
-          });
-          const numCols = 3;
-  
+              return {
+                segments: [col1.trim(), col2, col3],
+                originalIndex: originalRowIndex
+              };
+            }).filter(item => item.segments.some(text => text && text.trim() !== ""));
+            const numCols = 3;
+
             return (
               <table key={colIndex} className={styles.table}>
                 <thead>
@@ -96,6 +119,13 @@ function GiovanniDataDisplay() {
                       className={styles.headerCell}
                       colSpan={numCols}
                     >
+                      {headerImages[colIndex] && (
+                        <img 
+                          src={`http://localhost:5000/api/images/${headerImages[colIndex]}`} 
+                          alt="" 
+                          className={styles.headerImage}
+                        />
+                      )}
                       {hdr}
                     </th>
                   </tr>
@@ -106,11 +136,20 @@ function GiovanniDataDisplay() {
                   </tr>
                 </thead>
                 <tbody>
-                  {splitRows.map((segments, rowIndex) => (
-                    <tr key={rowIndex}>
-                      {segments.map((text, segIdx) => (
+                  {splitRows.map((item, filteredRowIndex) => (
+                    <tr key={filteredRowIndex}>
+                      {item.segments.map((text, segIdx) => (
                         <td key={segIdx} className={styles.bodyCell}>
-                          {text}
+                          <div className={styles.cellContent}>
+                            {segIdx === 0 && bodyImages[item.originalIndex] && bodyImages[item.originalIndex][colIndex] && (
+                              <img 
+                                src={`http://localhost:5000/api/images/${bodyImages[item.originalIndex][colIndex]}`} 
+                                alt="" 
+                                className={styles.rowImage}
+                              />
+                            )}
+                            <span>{text}</span>
+                          </div>
                         </td>
                       ))}
                     </tr>
