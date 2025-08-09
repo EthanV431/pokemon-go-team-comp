@@ -1,0 +1,11 @@
+node_modules
+build
+.git
+.gitignore
+docker-compose.yml
+npm-debug.log*
+__pycache__
+*.pyc
+.env
+cached_images
+pokemon_data.json

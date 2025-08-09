@@ -1,0 +1,14 @@
+flask
+flask-cors
+requests
+beautifulsoup4
+selenium
+boto3
+gunicorn
+schedule
+camoufox[geoip]
+urllib3
+lxml
+pillow
+certifi
+charset-normalizer

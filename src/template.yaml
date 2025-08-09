@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Pokemon GO Team Comp API
+
+Parameters:
+  DataBucketName:
+    Type: String
+
+Resources:
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: app.handler
+      Runtime: python3.11
+      MemorySize: 256
+      Timeout: 10
+      Environment:
+        Variables:
+          DATA_BUCKET: !Ref DataBucketName
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref DataBucketName
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /api/{proxy+}
+            Method: ANY
+
+Outputs:
+  HttpApiUrl:
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"

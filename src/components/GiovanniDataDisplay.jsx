@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import styles from './DataDisplay.module.css';
 import pokeball from '../images/pokeball.png';
+import { API_BASE } from '../config/api';
 
 function GiovanniDataDisplay() {
   const [rows, setRows] = useState([]);
@@ -14,7 +15,7 @@ function GiovanniDataDisplay() {
   const [bodyImages, setBodyImages] = useState([]);
 
     useEffect(() => {
-    fetch('http://localhost:5000/api/giovanniTeam')
+    fetch(`${API_BASE}/giovanniTeam`)
       .then(res => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -121,7 +122,7 @@ function GiovanniDataDisplay() {
                     >
                       {headerImages[colIndex] && (
                         <img 
-                          src={`http://localhost:5000/api/images/${headerImages[colIndex]}`} 
+                          src={`${API_BASE}/images/${headerImages[colIndex]}`} 
                           alt="" 
                           className={styles.headerImage}
                         />
@@ -143,7 +144,7 @@ function GiovanniDataDisplay() {
                           <div className={styles.cellContent}>
                             {segIdx === 0 && bodyImages[item.originalIndex] && bodyImages[item.originalIndex][colIndex] && (
                               <img 
-                                src={`http://localhost:5000/api/images/${bodyImages[item.originalIndex][colIndex]}`} 
+                                src={`${API_BASE}/images/${bodyImages[item.originalIndex][colIndex]}`} 
                                 alt="" 
                                 className={styles.rowImage}
                               />

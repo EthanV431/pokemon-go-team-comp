@@ -21,18 +21,6 @@ from camoufox.sync_api import Camoufox
 DATA_FILE = 'pokemon_data.json'
 IMAGES_DIR = 'cached_images'
 
-def create_driver():
-    options = Options()
-    options.add_argument("--headless=new")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--remote-debugging-port=9222")
-
-    # point to the OS-installed chromedriver
-    service = Service("/usr/bin/chromedriver")
-    driver  = webdriver.Chrome(service=service, options=options)
-    return driver
-
 app = Flask(__name__)
 CORS(app)
 
@@ -130,21 +118,35 @@ def should_update_data():
     return False
 
 def getPageContent(url, timeout=10):
+    import subprocess
+    import tempfile
+    import sys
+    
+    # Create a separate script to run camoufox in isolation
+    script_content = f'''
+import sys
+from bs4 import BeautifulSoup
+from camoufox.sync_api import Camoufox
+from urllib.parse import urljoin
+import json
+
+url = "{url}"
+timeout = {timeout}
+
+try:
     with Camoufox(headless=True, geoip=True) as browser:
         page = browser.new_page()
-        page.goto(url, timeout=timeout * 1000)    # timeout in ms
-        html = page.content()                      # get rendered HTML
+        page.goto(url, timeout=timeout * 1000)
+        html = page.content()
 
-    # parse with BeautifulSoup as before
     soup = BeautifulSoup(html, "html.parser")
     h2_texts = [tag.get_text(strip=True) for tag in soup.find_all("h2")]
     h1_texts = [tag.get_text(strip=True) for tag in soup.find_all("h1")]
     tbody_texts = [
-        tag.get_text(separator="\n", strip=True)
+        tag.get_text(separator="\\n", strip=True)
         for tag in soup.find_all("tbody")
     ]
     
-    # Extract images from tables
     table_images = []
     tables = soup.find_all("table")
     for table in tables:
@@ -153,17 +155,44 @@ def getPageContent(url, timeout=10):
         for img in images:
             src = img.get("src")
             if src:
-                # Convert relative URLs to absolute
                 absolute_url = urljoin(url, src)
                 table_imgs.append(absolute_url)
         table_images.append(table_imgs)
     
-    return {
+    result = {{
         "h2": h2_texts, 
         "h1": h1_texts, 
         "tbody": tbody_texts,
         "table_images": table_images
-    }
+    }}
+    
+    print(json.dumps(result))
+    
+except Exception as e:
+    print(json.dumps({{"error": str(e)}}), file=sys.stderr)
+    sys.exit(1)
+'''
+    
+    # Write script to temp file and execute it
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        f.write(script_content)
+        temp_script = f.name
+    
+    try:
+        result = subprocess.run([sys.executable, temp_script], 
+                              capture_output=True, text=True, timeout=60)
+        
+        if result.returncode != 0:
+            print(f"Camoufox subprocess failed: {result.stderr}")
+            return {"h2": [], "h1": [], "tbody": [], "table_images": []}
+            
+        return json.loads(result.stdout)
+        
+    except (subprocess.TimeoutExpired, json.JSONDecodeError) as e:
+        print(f"Error running camoufox subprocess: {e}")
+        return {"h2": [], "h1": [], "tbody": [], "table_images": []}
+    finally:
+        os.unlink(temp_script)
 
 def cleanBodyText(text):
     chunks = []
@@ -356,10 +385,18 @@ def serve_image(filename):
     return send_from_directory(IMAGES_DIR, filename)
 
 if __name__ == "__main__":
+    print("Starting Pokemon GO Team Comp Backend...")
+    print(f"Working directory: {os.getcwd()}")
+    print(f"Data file path: {os.path.abspath(DATA_FILE)}")
+    print(f"Images directory: {os.path.abspath(IMAGES_DIR)}")
+    
     # Initial data fetch if no cached data exists
     cached_data = load_cached_data()
     if not cached_data:
         print("No cached data found, performing initial fetch...")
         fetch_and_cache_data()
+    else:
+        print("Found cached data, skipping initial fetch")
     
-    app.run(port=5000)
+    print("Starting Flask server on port 5000...")
+    app.run(host='0.0.0.0', port=5000, debug=True)
