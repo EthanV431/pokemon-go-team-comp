@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import styles from './DataDisplay.module.css';
 import pokeball from '../images/pokeball.png';
-import { API_BASE } from '../config/api';
+import {API_BASE} from '../config/api';
+import S3Image from './S3Image';
 
 function CliffDataDisplay() {
   const [rows, setRows] = useState([]);
@@ -134,8 +135,8 @@ function CliffDataDisplay() {
                     colSpan={numCols}
                   >
                     {headerImages[colIndex] && (
-                      <img 
-                        src={`${API_BASE}/images/${headerImages[colIndex]}`} 
+                      <S3Image 
+                        filename={headerImages[colIndex]} 
                         alt="" 
                         className={styles.headerImage}
                       />
@@ -156,8 +157,8 @@ function CliffDataDisplay() {
                       <td key={segIdx} className={styles.bodyCell}>
                         <div className={styles.cellContent}>
                           {segIdx === 0 && bodyImages[item.originalIndex] && bodyImages[item.originalIndex][colIndex] && (
-                            <img 
-                              src={`${API_BASE}/images/${bodyImages[item.originalIndex][colIndex]}`} 
+                            <S3Image 
+                              filename={bodyImages[item.originalIndex][colIndex]} 
                               alt="" 
                               className={styles.rowImage}
                             />

@@ -23,3 +23,7 @@ yarn-debug.log*
 yarn-error.log*
 src/pokemon_data.json
 src/cached_images
+src/scraper-task.json
+.gitignore
+src/frontend-task.json
+src/backend-task.json
